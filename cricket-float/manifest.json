@@ -12,7 +12,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
+      "matches": ["http://*/*", "https://*/*", "file:///*"],
       "js": ["widget.js", "content.js"],
       "run_at": "document_idle"
     }

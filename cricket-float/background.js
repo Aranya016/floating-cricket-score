@@ -241,7 +241,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.remove('floating'); // left over from 1.0's pop-out window
   await ensureAlarm();
   // Show the widget in tabs that were already open, without needing a reload.
-  const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+  // file:// covers PDFs and pages saved on the computer (unpacked extensions may read them by default).
+  const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*', 'file:///*'] });
   for (const tab of tabs) {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['widget.js', 'content.js'] }).catch(() => {});
   }
