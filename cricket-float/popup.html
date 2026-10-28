@@ -9,14 +9,16 @@
   <header>
     <img src="icons/icon32.png" alt="" width="20" height="20">
     <h1>Floating Score</h1>
+    <label class="switch" title="Show the score on your tabs (Alt+Shift+C)">
+      <input type="checkbox" id="enabled">
+      <span></span>
+    </label>
   </header>
 
   <div id="current"></div>
   <div class="row">
-    <button id="float" class="primary">Float score</button>
     <button id="refresh">Refresh now</button>
   </div>
-  <p class="hint" id="float-hint">Opens a small window in the corner that stays above everything, like a video. Click it to see batters and bowler. Brave labels the window with the site it floats from; keep the match open in a Cricinfo tab and it floats from there.</p>
 
   <button id="this-tab" class="wide" hidden></button>
   <p id="err" class="err" hidden></p>
@@ -32,13 +34,6 @@
 
   <h2>Settings</h2>
   <div class="setting">
-    <span>Also show a score card inside web pages</span>
-    <label class="switch" title="Alt+Shift+C also shows or hides it">
-      <input type="checkbox" id="enabled">
-      <span></span>
-    </label>
-  </div>
-  <div class="setting">
     <span>Refresh every</span>
     <select id="interval">
       <option value="15">15 seconds</option>
@@ -47,9 +42,9 @@
       <option value="60">1 minute</option>
     </select>
   </div>
-  <div class="setting"><button id="reset-pos" class="link">Move the page card back to the bottom-right corner</button></div>
+  <div class="setting"><button id="reset-pos" class="link">Move the score back to the bottom-right corner</button></div>
   <p class="foot">
-    The floating window lives in the tab you float it from, so leave that tab open.
+    <b>Alt+Shift+C</b> shows or hides the score.
     For the fastest updates, keep the match open in a Cricinfo tab (you can pin it).
   </p>
 

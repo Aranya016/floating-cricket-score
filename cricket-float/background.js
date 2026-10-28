@@ -7,9 +7,8 @@ const DEFAULT_PREFS = {
   enabled: true,
   matchUrl: null, // picked automatically on first run (see autoPick), or by the user in the menu
   interval: 20, // seconds between refreshes while a match is live
-  collapsed: false, // the card inside pages
-  pipCompact: true, // the floating window shows just the score until clicked
-  pos: null, // where the card inside pages sits, shared by all tabs
+  collapsed: true, // start as the one-line pill; click it for the full card
+  pos: null, // where the score sits on pages, shared by all tabs
 };
 
 async function getPrefs() {
@@ -203,30 +202,15 @@ async function onTitle(url, title) {
   }
 }
 
-// Which tab hosts the floating window, so the cards inside pages can step aside meanwhile.
-// The host tab re-confirms with every tick; content.js stops trusting it after a few minutes.
-async function setFloating(tabId, open) {
-  if (tabId == null) return;
-  const { floating } = await chrome.storage.local.get('floating');
-  if (open) {
-    if (floating && floating.tabId === tabId && Date.now() - floating.at < 60000) return;
-    await chrome.storage.local.set({ floating: { tabId, at: Date.now() } });
-  } else if (floating && floating.tabId === tabId) {
-    await chrome.storage.local.remove('floating');
-  }
-}
-
 // --- Wiring ----------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  const tabId = sender.tab && sender.tab.id;
   const jobs = {
-    tick: () => Promise.all([refresh(false), msg.pip ? setFloating(tabId, true) : null]),
+    tick: () => refresh(false),
     refresh: () => refresh(true),
     follow: () => follow(msg.url),
     list: () => listMatches(),
     title: () => onTitle(msg.url, msg.title),
-    floating: () => setFloating(tabId, !!msg.open),
   };
   const job = jobs[msg && msg.type];
   if (!job) return false;
@@ -252,15 +236,9 @@ async function ensureAlarm() {
   if (!(await chrome.alarms.get('poll'))) chrome.alarms.create('poll', { periodInMinutes: 0.5 });
 }
 
-// The floating window dies with its tab's page.
-chrome.tabs.onRemoved.addListener((tabId) => setFloating(tabId, false));
-chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (info.status === 'loading') setFloating(tabId, false);
-});
-
 chrome.runtime.onInstalled.addListener(async () => {
   await setPrefs({}); // write defaults so content scripts can read them
-  await chrome.storage.local.remove('floating');
+  await chrome.storage.local.remove('floating'); // left over from 1.0's pop-out window
   await ensureAlarm();
   // Show the widget in tabs that were already open, without needing a reload.
   const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
@@ -270,8 +248,5 @@ chrome.runtime.onInstalled.addListener(async () => {
   refresh(true);
 });
 
-chrome.runtime.onStartup.addListener(() => {
-  chrome.storage.local.remove('floating');
-  ensureAlarm();
-});
+chrome.runtime.onStartup.addListener(ensureAlarm);
 ensureAlarm();

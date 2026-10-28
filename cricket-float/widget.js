@@ -1,5 +1,5 @@
-// Score card markup and styles, shared by the in-page widget (content.js),
-// the floating picture-in-picture window, and the toolbar menu.
+// Score card markup and styles, shared by the floating score on pages (content.js)
+// and the toolbar menu.
 (function (root) {
   if (root.CricWidget) return;
 
@@ -13,7 +13,6 @@
   border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
 }
-.card.full { width: 100%; min-height: 100vh; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; background: #0f131b; }
 .card.inline { width: 100%; box-shadow: none; backdrop-filter: none; background: #161b26; }
 .bar { display: flex; align-items: center; gap: 6px; padding: 7px 6px 5px 10px; }
 .drag { cursor: grab; }
@@ -70,19 +69,6 @@ svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width:
 }
 .pill .sc { font-variant-numeric: tabular-nums; }
 .pill .ov, .pill .vs { color: #98a2b3; font-weight: 500; font-size: 11.5px; }
-.pill button { width: 20px; height: 20px; margin: -3px -7px -3px 1px; }
-.pill button svg { width: 13px; height: 13px; }
-.pill.fill {
-  display: flex; justify-content: safe center; gap: 8px; width: 100%; height: 100vh; padding: 0 12px; overflow: hidden; cursor: pointer;
-  font-size: 19px; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; background: #0f131b;
-}
-.pill.fill .ov, .pill.fill .vs { font-size: 13px; }
-.pill.fill .dot { width: 9px; height: 9px; }
-.pill.fill .chip { font-size: 11px; }
-.pill.prompt { cursor: pointer; gap: 8px; color: #fff; background: #d92d20; border-color: #d92d20; animation: nudge 1.1s ease-in-out 4; }
-.pill.prompt:hover { background: #b42318; }
-.pill.prompt svg { width: 15px; height: 15px; }
-@keyframes nudge { 50% { transform: scale(1.06); } }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: #667085; flex: none; }
 .dot.live { background: #f04438; } /* steady, not blinking: it sits in view all match long */
 .chip { font-size: 10px; font-weight: 800; letter-spacing: .05em; padding: 2px 7px; border-radius: 999px; color: #fff; animation: pulse .5s 6 alternate; }
@@ -92,19 +78,15 @@ svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width:
 `;
 
   const ICONS = {
-    pop: '<path d="M9.5 2.5h4v4M13.5 2.5 8 8M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/>',
     collapse: '<path d="M3.5 8h9"/>',
     close: '<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>',
-    refresh: '<path d="M13 8a5 5 0 1 1-1.6-3.7M13.2 2.5v2.8h-2.8"/>',
   };
   const TITLES = {
-    pop: 'Float: a small window above all your windows, like a video',
     collapse: 'Show just the score',
     close: 'Hide (Alt+Shift+C brings it back)',
-    refresh: 'Refresh now',
   };
   const EVENT_LABEL = { W: 'WICKET!', 6: 'SIX!', 4: 'FOUR!' };
-  const ACTIONS = { float: ['pop', 'collapse', 'close'], pip: ['collapse', 'refresh'] };
+  const ACTIONS = { float: ['collapse', 'close'] };
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const shortOv = (info) => (String(info || '').match(/(\d+(?:\.\d)?)\s*ov/) || [])[1] || '';
@@ -153,7 +135,7 @@ svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width:
   }
 
   function card(s, opts, now) {
-    const full = opts.mode === 'float' ? '' : opts.mode === 'inline' ? ' inline' : ' full';
+    const full = opts.mode === 'inline' ? ' inline' : '';
     if (!s || !s.teams) {
       const body = s && s.error
         ? `Couldn't load the score.<small>${esc(s.error)}. If this keeps happening, open any cricinfo.com tab and the extension will read the score through it.</small>`
@@ -196,14 +178,11 @@ svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width:
     return `<div class="card${full}">${html}</div>`;
   }
 
-  // The one-line score: a draggable pill on pages, or the whole floating window when score-only.
+  // The one-line score pill; click it for the full card.
   function pill(s, opts, now) {
-    const fill = opts.mode === 'pip';
-    const open = `<div class="pill${fill ? ' fill' : ''}"${fill ? '' : ' data-drag'} data-act="expand" ` +
-      `title="${fill ? 'Click for details' : 'Click to expand, drag to move'}">`;
-    const pop = opts.mode === 'float' ? `<button data-act="pop" title="${TITLES.pop}"><svg viewBox="0 0 16 16">${ICONS.pop}</svg></button>` : '';
+    const open = '<div class="pill" data-drag data-act="expand" title="Click for details, drag to move">';
     if (!s || !s.teams) {
-      return `${open}<span class="dot"></span>${s && s.error ? 'Score unavailable' : 'Loading…'}${pop}</div>`;
+      return `${open}<span class="dot"></span>${s && s.error ? 'Score unavailable' : 'Loading…'}</div>`;
     }
     const bat = s.teams.find((t) => t.batting);
     let body;
@@ -219,19 +198,14 @@ svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width:
       body = s.teams.map((t) => `<b>${esc(t.abbr)}</b><span class="sc">${esc(t.score || '–')}</span>`).join('<span class="vs">v</span>');
     }
     const chip = opts.flash ? `<span class="chip k-${esc(opts.flash)}">${EVENT_LABEL[opts.flash] || ''}</span>` : '';
-    return `${open}<span class="dot${s.phase === 'live' ? ' live' : ''}"></span>${body}${chip}${pop}</div>`;
+    return `${open}<span class="dot${s.phase === 'live' ? ' live' : ''}"></span>${body}${chip}</div>`;
   }
 
-  // Shown on the page when the browser wants a click on the page itself before floating.
-  function floatPrompt() {
-    return `<div class="pill prompt" data-act="pop" title="${TITLES.pop}"><svg viewBox="0 0 16 16">${ICONS.pop}</svg>Click to float the score</div>`;
-  }
-
-  // opts: { mode: 'float' | 'pip' | 'inline', collapsed, prompt, flash: 'W' | '4' | '6' | null, now }
+  // opts: { mode: 'float' (on pages, the default) | 'inline' (the toolbar menu), collapsed, flash: 'W' | '4' | '6' | null, now }
   function render(box, score, opts = {}) {
+    opts = { mode: 'float', ...opts };
     const now = opts.now || Date.now();
-    if (opts.prompt) box.innerHTML = floatPrompt();
-    else box.innerHTML = opts.collapsed && opts.mode !== 'inline' ? pill(score, opts, now) : card(score, opts, now);
+    box.innerHTML = opts.collapsed && opts.mode === 'float' ? pill(score, opts, now) : card(score, opts, now);
     // Colours go through CSSOM rather than style="" so strict page CSPs can't block them.
     box.querySelectorAll('[data-color]').forEach((el) => {
       if (/^#[0-9a-f]{3,8}$/i.test(el.dataset.color)) el.style.background = el.dataset.color;

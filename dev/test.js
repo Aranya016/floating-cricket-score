@@ -290,44 +290,12 @@ test('worker: follow switches match; bad links are rejected', async () => {
   assert.equal(w.chrome.badge.text, '329');
 });
 
-test('worker: tracks which tab hosts the floating window', async () => {
-  const w = loadWorker(async () => okResponse(page(live)));
-  await w.chrome.listeners.installed();
-  const local = w.chrome.storage.local.data;
-  const settle = () => new Promise((r) => setTimeout(r, 5));
-
-  await w.message({ type: 'floating', open: true }, { tab: { id: 5 } });
-  assert.equal(local.floating.tabId, 5);
-  // Another tab closing its (old) window must not clear tab 5's.
-  await w.message({ type: 'floating', open: false }, { tab: { id: 9 } });
-  assert.equal(local.floating.tabId, 5);
-  // Ticks from the host tab keep it fresh, without rewriting storage every 5 seconds.
-  const at = local.floating.at;
-  await w.message({ type: 'tick', pip: true }, { tab: { id: 5 } });
-  assert.equal(local.floating.at, at);
-  local.floating.at -= 70000;
-  const stale = local.floating.at;
-  await w.message({ type: 'tick', pip: true }, { tab: { id: 5 } });
-  assert.ok(local.floating.at >= stale + 70000);
-  // Navigating or closing the host tab clears it.
-  w.chrome.listeners.tabUpdated(5, { status: 'complete' });
-  await settle();
-  assert.equal(local.floating.tabId, 5);
-  w.chrome.listeners.tabUpdated(5, { status: 'loading' });
-  await settle();
-  assert.equal(local.floating, undefined);
-  await w.message({ type: 'floating', open: true }, { tab: { id: 6 } });
-  w.chrome.listeners.tabRemoved(6);
-  await settle();
-  assert.equal(local.floating, undefined);
-});
-
-test('worker: install resets the floating state and defaults to score-only', async () => {
+test('worker: install starts as the one-line pill and clears 1.0 leftovers', async () => {
   const w = loadWorker(async () => okResponse(page(live)));
   w.chrome.storage.local.data.floating = { tabId: 3, at: Date.now() };
   await w.chrome.listeners.installed();
   assert.equal(w.chrome.storage.local.data.floating, undefined);
-  assert.equal(w.chrome.storage.local.data.prefs.pipCompact, true);
+  assert.equal(w.chrome.storage.local.data.prefs.collapsed, true);
 });
 
 test('worker: a fresh install follows the top live international match', async () => {

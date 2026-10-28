@@ -28,9 +28,6 @@ button.link:hover { color: var(--text); background: none; }
 button.wide { display: block; width: 100%; margin-top: 8px; text-align: left; border-color: rgba(240, 68, 56, .45); }
 .row { display: flex; gap: 8px; margin-top: 8px; }
 .row button { flex: 1; }
-.row button.primary { flex: 1.6; font-weight: 600; color: #fff; background: #d92d20; border-color: #d92d20; }
-.row button.primary:hover { background: #b42318; }
-.hint { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
 .err { margin: 8px 0 0; padding: 7px 9px; border-radius: 8px; background: rgba(240, 68, 56, .14); color: #fda29b; }
 #current { min-height: 40px; }
 

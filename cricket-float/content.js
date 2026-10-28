@@ -15,9 +15,6 @@
   let score = null;
   let host = null;
   let box = null;
-  let pip = null; // { win, box } while this tab hosts the floating window
-  let floating = null; // { tabId, at } while any tab hosts it (background.js keeps this)
-  let promptUntil = 0; // showing "Click to float the score" until then
   let drag = null;
   let renderPending = false;
   let dragEndedAt = -Infinity;
@@ -31,7 +28,6 @@
     timers.forEach(clearInterval);
     if (host) host.remove();
     host = null;
-    if (pip) pip.win.close();
   }
   document.addEventListener(TAKEOVER, stop, { once: true });
 
@@ -122,7 +118,7 @@
     const ev = score && score.event;
     if (!ev || ev.id === shownEvent) return;
     shownEvent = ev.id;
-    if (Date.now() - ev.at > 60000 || (document.visibilityState !== 'visible' && !pip)) return;
+    if (Date.now() - ev.at > 60000 || document.visibilityState !== 'visible') return;
     flash = ev.kind;
     flashUntil = Date.now() + 3900;
     setTimeout(render, 4000);
@@ -135,19 +131,14 @@
       return;
     }
     const now = Date.now();
-    // While the score floats in its own window, the cards inside pages step aside.
-    const floatingSomewhere = !!pip || (!!floating && now - floating.at < FLOATING_TTL);
-    const prompt = !pip && now < promptUntil;
-    const show = prompt || (prefs.enabled && prefs.matchUrl && !floatingSomewhere);
-    if (!show) {
+    if (!prefs.enabled || !prefs.matchUrl) {
       if (host) host.remove();
       host = null;
-    } else {
-      ensureHost();
-      W.render(box, score, { mode: 'float', collapsed: prefs.collapsed, prompt, flash: activeFlash(now), now });
-      place();
+      return;
     }
-    if (pip) W.render(pip.box, score, { mode: 'pip', collapsed: prefs.pipCompact !== false, flash: activeFlash(now), now });
+    ensureHost();
+    W.render(box, score, { collapsed: prefs.collapsed, flash: activeFlash(now), now });
+    place();
   }
 
   // --- Dragging --------------------------------------------------------------
@@ -220,92 +211,11 @@
     const el = e.target.closest('[data-act]');
     if (!el) return;
     const act = el.dataset.act;
-    if (pip && e.currentTarget === pip.box) {
-      if (act === 'collapse' || act === 'expand') setFloatLayout(act === 'collapse');
-      else if (act === 'refresh') send({ type: 'refresh' });
-      return;
-    }
     if (act === 'collapse') savePrefs({ collapsed: true });
     else if (act === 'expand') savePrefs({ collapsed: false });
     else if (act === 'close') savePrefs({ enabled: false });
-    else if (act === 'pop') popOut();
     else if (act === 'refresh') send({ type: 'refresh' });
   }
-
-  // --- The floating window -------------------------------------------------------
-  // Document Picture-in-Picture: the same kind of always-on-top corner window Chrome
-  // uses for videos. Score-only by default; click it for the full card.
-
-  const COMPACT_SIZE = { width: 280, height: 64 };
-  const FLOATING_TTL = 150000; // trust another tab's "I'm floating" for this long without a heartbeat
-
-  function contentHeight(el) {
-    const card = el && el.firstElementChild;
-    if (!card || !card.classList.contains('card')) return 262;
-    const used = [...card.children].filter((c) => !c.classList.contains('flash')).reduce((h, c) => h + c.offsetHeight, 0);
-    return used + 2 + 16; // border, plus spare room for a two-line status or a browser info bar
-  }
-
-  function setFloatLayout(compact) {
-    savePrefs({ pipCompact: compact }); // re-renders the window straight away
-    const w = compact ? COMPACT_SIZE.width : 300;
-    const h = compact ? COMPACT_SIZE.height : contentHeight(pip.box);
-    try {
-      pip.win.resizeBy(w - pip.win.innerWidth, h - pip.win.innerHeight);
-    } catch (_) {
-      // the user can still resize it by hand
-    }
-  }
-
-  // Resolves to 'ok', 'unsupported', 'not-allowed' (no click to justify it) or an error message.
-  async function popOut() {
-    if (pip) return 'ok';
-    const api = window.documentPictureInPicture;
-    if (!api) return 'unsupported';
-    const compact = prefs.pipCompact !== false;
-    const size = compact ? COMPACT_SIZE : { width: 300, height: host && !prefs.collapsed ? contentHeight(box) : 262 };
-    let win;
-    try {
-      win = await api.requestWindow(size);
-    } catch (err) {
-      return err && err.name === 'NotAllowedError' ? 'not-allowed' : String((err && err.message) || err);
-    }
-    W.adoptStyles(win.document, win);
-    win.document.title = 'Live score';
-    setStyles(win.document.body, { margin: '0', background: '#0f131b' });
-    const pbox = win.document.createElement('div');
-    win.document.body.append(pbox);
-    pbox.addEventListener('click', onClick);
-    pip = { win, box: pbox };
-    promptUntil = 0;
-    win.addEventListener('pagehide', () => {
-      pip = null;
-      send({ type: 'floating', open: false });
-      render();
-    });
-    render();
-    send({ type: 'floating', open: true });
-    send({ type: 'tick', pip: true });
-    return 'ok';
-  }
-
-  // What the toolbar menu calls (through chrome.scripting) to float or un-float the score.
-  globalThis.cricFloatApi = {
-    async pop(promptIfBlocked = true) {
-      const result = await popOut();
-      if (result === 'not-allowed' && promptIfBlocked) {
-        // The menu's click didn't count for this page: ask for one click on the page instead.
-        promptUntil = Date.now() + 20000;
-        render();
-        setTimeout(render, 20100);
-      }
-      return result;
-    },
-    unpop() {
-      if (pip) pip.win.close();
-      return 'ok';
-    },
-  };
 
   // --- Fresher numbers from an open Cricinfo match tab --------------------------
 
@@ -321,13 +231,12 @@
   function tick() {
     if (!alive) return;
     if (extensionGone()) return stop();
-    if (prefs && prefs.matchUrl && (pip || (prefs.enabled && document.visibilityState === 'visible'))) send({ type: 'tick', pip: !!pip });
+    if (prefs && prefs.matchUrl && prefs.enabled && document.visibilityState === 'visible') send({ type: 'tick' });
   }
 
-  chrome.storage.local.get(['prefs', 'score', 'floating']).then((r) => {
+  chrome.storage.local.get(['prefs', 'score']).then((r) => {
     prefs = r.prefs || null;
     score = r.score || null;
-    floating = r.floating || null;
     shownEvent = score && score.event ? score.event.id : null; // don't replay an old wicket
     render();
     tick();
@@ -336,7 +245,6 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (!alive || area !== 'local') return;
     if (changes.prefs) prefs = changes.prefs.newValue || null;
-    if (changes.floating) floating = changes.floating.newValue || null;
     if (changes.score) {
       score = changes.score.newValue || null;
       checkEvent();
@@ -352,7 +260,7 @@
   addEventListener('resize', place);
   timers.push(setInterval(tick, 5000));
   timers.push(setInterval(() => {
-    if (document.visibilityState === 'visible' || pip) render(); // keeps "updated 20s ago" honest
+    if (document.visibilityState === 'visible') render(); // keeps "updated 20s ago" honest
   }, 15000));
 
   if (/(^|\.)cricinfo\.com$/.test(location.hostname)) {
