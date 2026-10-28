@@ -18,4 +18,4 @@ Keep this folder where it is: the browser runs the extension from it.
 - Click the red ball icon to pick a match or paste a Cricinfo match link.
 - **Alt+Shift+C**, the **×** button, or the switch in the menu shows or hides it.
 
-Not affiliated with ESPN or ESPNcricinfo. Source, updates and issues: see the project's GitHub page.
+Not affiliated with ESPN or ESPNcricinfo. Source, updates and issues: https://github.com/Aranya016/floating-cricket-score

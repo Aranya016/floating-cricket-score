@@ -15,7 +15,7 @@ You don't have to keep switching to the scorecard tab to see what's happening. S
 
 ## Install
 
-1. Download **floating-cricket-score.zip** from the latest release (under **Releases** on this page) and unzip it.
+1. Download **floating-cricket-score.zip** from the [latest release](https://github.com/Aranya016/floating-cricket-score/releases/latest) and unzip it.
 2. Open `brave://extensions` (Chrome: `chrome://extensions`, Edge: `edge://extensions`).
 3. Turn on **Developer mode** (top-right).
 4. Click **Load unpacked** and choose the unzipped `cricket-float` folder, the one with `manifest.json` in it.
