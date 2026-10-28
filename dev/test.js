@@ -166,7 +166,24 @@ function makeChrome() {
     },
     runtime: { onMessage: event('message'), onInstalled: event('installed'), onStartup: event('startup'), getURL: (p) => 'chrome-extension://x/' + p },
     commands: { onCommand: event('command') },
-    tabs: { query: async () => [], onRemoved: event('tabRemoved'), onUpdated: event('tabUpdated') },
+    // Two browser windows: window 1 (active tab 11) was used last, window 2 has active tab 22.
+    windowsState: { lastFocused: 1, active: { 1: 11, 2: 22 } },
+    tabs: {
+      async query(q) {
+        const id = q.active && q.windowId != null ? this.owner.windowsState.active[q.windowId] : null;
+        return id ? [{ id }] : [];
+      },
+      onRemoved: event('tabRemoved'),
+      onUpdated: event('tabUpdated'),
+      onActivated: event('tabActivated'),
+    },
+    windows: {
+      WINDOW_ID_NONE: -1,
+      async getLastFocused() {
+        return { id: this.owner.windowsState.lastFocused };
+      },
+      onFocusChanged: event('focusChanged'),
+    },
     scripting: { executeScript: async () => [] },
   };
 }
@@ -174,6 +191,7 @@ function makeChrome() {
 // By default the worker starts out following the BAN v WI fixture match; pass followed: null for a fresh install.
 function loadWorker(fetchImpl, { followed = USER_URL } = {}) {
   const chrome = makeChrome();
+  chrome.tabs.owner = chrome.windows.owner = chrome;
   if (followed) chrome.storage.local.data.prefs = { matchUrl: followed };
   const ctx = { chrome, fetch: fetchImpl, console, URL, structuredClone, setTimeout };
   ctx.self = ctx;
@@ -314,6 +332,31 @@ test('worker: a fresh install follows the top live international match', async (
   assert.equal(w.chrome.storage.local.data.prefs.matchUrl, 'https://www.cricinfo.com/series/s-1/m-3-3/live-cricket-score');
   assert.equal(fetched[0], P.LIST_URL);
   assert.equal(w.chrome.storage.local.data.score.teams[0].abbr, 'BAN');
+});
+
+test('worker: with windows side by side, only the one used last shows the score', async () => {
+  const w = loadWorker(async () => okResponse(page(live)));
+  const local = w.chrome.storage.local.data;
+  const settle = () => new Promise((r) => setTimeout(r, 5));
+  await w.chrome.listeners.installed();
+  assert.equal(local.shownIn, 11, 'active tab of the window used last');
+  // Click into window 2: the score moves there.
+  w.chrome.windowsState.lastFocused = 2;
+  w.chrome.listeners.focusChanged(2);
+  await settle();
+  assert.equal(local.shownIn, 22);
+  // Switching to another app keeps it where it is.
+  w.chrome.listeners.focusChanged(-1);
+  await settle();
+  assert.equal(local.shownIn, 22);
+  // A tab switch in window 1 while window 2 is in use doesn't take it; one in window 2 does.
+  await w.chrome.listeners.tabActivated({ tabId: 12, windowId: 1 });
+  assert.equal(local.shownIn, 22);
+  await w.chrome.listeners.tabActivated({ tabId: 23, windowId: 2 });
+  assert.equal(local.shownIn, 23);
+  // Each page learns its own tab id, to compare with shownIn.
+  const res = await w.message({ type: 'whoami' }, { tab: { id: 23 } });
+  assert.equal(res.result, 23);
 });
 
 test('worker: keyboard shortcut toggles the widget', async () => {

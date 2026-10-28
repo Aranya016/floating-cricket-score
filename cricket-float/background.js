@@ -202,10 +202,45 @@ async function onTitle(url, title) {
   }
 }
 
+// --- Which tab shows the score ------------------------------------------------
+// One score at a time: in the active tab of the browser window used last, so windows side by
+// side don't each show their own. Switching to another app leaves it where it is.
+
+async function showIn(tabId) {
+  const { shownIn } = await chrome.storage.local.get('shownIn');
+  if (shownIn !== tabId) await chrome.storage.local.set({ shownIn: tabId });
+}
+
+async function showInWindow(windowId) {
+  const [tab] = await chrome.tabs.query({ active: true, windowId });
+  if (tab) await showIn(tab.id);
+}
+
+async function showInLastFocused() {
+  const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
+  if (win) await showInWindow(win.id);
+}
+
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId !== chrome.windows.WINDOW_ID_NONE) showInWindow(windowId);
+}, { windowTypes: ['normal'] });
+
+chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
+  // A tab switching in a window you aren't using (e.g. one opened by a link) doesn't take the score.
+  const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
+  if (!win || win.id === windowId) await showIn(tabId);
+});
+
 // --- Wiring ----------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const jobs = {
+    // A content script asks which tab it is in, to know whether the score is its to show.
+    whoami: async () => {
+      const { shownIn } = await chrome.storage.local.get('shownIn');
+      if (shownIn == null) await showInLastFocused();
+      return sender.tab ? sender.tab.id : null;
+    },
     tick: () => refresh(false),
     refresh: () => refresh(true),
     follow: () => follow(msg.url),
@@ -239,6 +274,7 @@ async function ensureAlarm() {
 chrome.runtime.onInstalled.addListener(async () => {
   await setPrefs({}); // write defaults so content scripts can read them
   await chrome.storage.local.remove('floating'); // left over from 1.0's pop-out window
+  await showInLastFocused();
   await ensureAlarm();
   // Show the widget in tabs that were already open, without needing a reload.
   // file:// covers PDFs and pages saved on the computer (unpacked extensions may read them by default).
@@ -249,5 +285,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   refresh(true);
 });
 
-chrome.runtime.onStartup.addListener(ensureAlarm);
+chrome.runtime.onStartup.addListener(() => {
+  showInLastFocused(); // tab ids from the last session mean nothing now
+  ensureAlarm();
+});
 ensureAlarm();

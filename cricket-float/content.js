@@ -15,6 +15,8 @@
   let score = null;
   let host = null;
   let box = null;
+  let myTabId = null; // from background.js
+  let shownIn = null; // the one tab that shows the score (background.js decides)
   let drag = null;
   let renderPending = false;
   let dragEndedAt = -Infinity;
@@ -110,6 +112,8 @@
     });
   }
 
+  const shownHere = () => myTabId != null && shownIn === myTabId;
+
   function activeFlash(now) {
     return flash && now < flashUntil ? flash : null;
   }
@@ -131,7 +135,7 @@
       return;
     }
     const now = Date.now();
-    if (!prefs.enabled || !prefs.matchUrl) {
+    if (!prefs.enabled || !prefs.matchUrl || !shownHere()) {
       if (host) host.remove();
       host = null;
       return;
@@ -231,20 +235,27 @@
   function tick() {
     if (!alive) return;
     if (extensionGone()) return stop();
-    if (prefs && prefs.matchUrl && prefs.enabled && document.visibilityState === 'visible') send({ type: 'tick' });
+    if (prefs && prefs.matchUrl && prefs.enabled && shownHere() && document.visibilityState === 'visible') send({ type: 'tick' });
   }
 
-  chrome.storage.local.get(['prefs', 'score']).then((r) => {
+  chrome.storage.local.get(['prefs', 'score', 'shownIn']).then((r) => {
     prefs = r.prefs || null;
     score = r.score || null;
+    shownIn = r.shownIn ?? null;
     shownEvent = score && score.event ? score.event.id : null; // don't replay an old wicket
     render();
-    tick();
   });
+
+  chrome.runtime.sendMessage({ type: 'whoami' }).then((res) => {
+    myTabId = res && res.ok ? res.result : null;
+    render();
+    tick();
+  }, () => {});
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (!alive || area !== 'local') return;
     if (changes.prefs) prefs = changes.prefs.newValue || null;
+    if (changes.shownIn) shownIn = changes.shownIn.newValue ?? null;
     if (changes.score) {
       score = changes.score.newValue || null;
       checkEvent();

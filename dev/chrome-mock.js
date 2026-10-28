@@ -33,6 +33,7 @@
     const state = q.get('state') || 'live';
     const url = URLS[state] || URLS.live;
     data.prefs = { enabled: true, matchUrl: url, interval: 20, collapsed: q.get('collapsed') === '1', pos: null };
+    data.shownIn = 1; // this preview is "tab 1", and it's the one that shows the score
     data.score = scoreFor(url, state);
   })();
 
@@ -60,6 +61,7 @@
 
   async function handle(msg) {
     await ready;
+    if (msg.type === 'whoami') return { ok: true, result: 1 };
     if (msg.type === 'list') return { ok: true, result: list() };
     if (msg.type === 'follow') {
       const url = self.CricParser.matchUrl(msg.url);
