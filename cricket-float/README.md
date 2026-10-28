@@ -15,6 +15,7 @@ Keep this folder where it is: the browser runs the extension from it.
 
 - The score shows as a small pill on every tab. Click it for batters, bowler and recent balls; **–** shrinks it again.
 - Drag it anywhere; every tab uses the same spot.
+- With several windows open it stays in one; to move it, click the red ball icon in another window → **Show the score in this window**.
 - Click the red ball icon to pick a match or paste a Cricinfo match link.
 - **Alt+Shift+C**, the **×** button, or the switch in the menu shows or hides it.
 

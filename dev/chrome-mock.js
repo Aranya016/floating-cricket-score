@@ -34,6 +34,7 @@
     const url = URLS[state] || URLS.live;
     data.prefs = { enabled: true, matchUrl: url, interval: 20, collapsed: q.get('collapsed') === '1', pos: null };
     data.shownIn = 1; // this preview is "tab 1", and it's the one that shows the score
+    data.homeWindow = 1; // ...in window 1 (pass win=2 to preview the menu from another window)
     data.score = scoreFor(url, state);
   })();
 
@@ -62,6 +63,10 @@
   async function handle(msg) {
     await ready;
     if (msg.type === 'whoami') return { ok: true, result: 1 };
+    if (msg.type === 'showHere') {
+      set({ homeWindow: msg.windowId });
+      return { ok: true, result: null };
+    }
     if (msg.type === 'list') return { ok: true, result: list() };
     if (msg.type === 'follow') {
       const url = self.CricParser.matchUrl(msg.url);
@@ -89,6 +94,7 @@
       onChanged: { addListener: (fn) => listeners.push(fn) },
     },
     tabs: { query: async () => [{ url: q.get('tab') || 'https://example.com/' }] },
+    windows: { getCurrent: async () => ({ id: Number(q.get('win') || 1) }) },
   };
 
   // Hooks for poking the preview from devtools / automation.

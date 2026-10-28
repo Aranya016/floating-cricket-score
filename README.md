@@ -9,6 +9,8 @@ You don't have to keep switching to the scorecard tab to see what's happening. S
 
 - Shows a one-line score (`● BAN 56/1 (18.2) v WI`) on every tab. Click it for the batters, bowler, recent balls and run rate.
 - Drag it anywhere. It stays in that spot on every tab.
+- With several browser windows open, it stays in one of them (the first you use) and follows the tab you're on there.
+  To move it, click the red ball icon in another window and choose **Show the score in this window**.
 - Flashes on wickets, fours and sixes.
 - Starts on the biggest live international match. Pick another from the live list, or paste any Cricinfo match link.
 - Puts the score on the toolbar icon too. **Alt+Shift+C** shows or hides it.

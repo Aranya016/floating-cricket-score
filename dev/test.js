@@ -143,8 +143,8 @@ function makeChrome() {
         }
         changeListeners.forEach((fn) => fn(changes, name));
       },
-      async remove(key) {
-        delete data[key];
+      async remove(keys) {
+        for (const k of [].concat(keys)) delete data[k];
       },
     };
   };
@@ -179,10 +179,15 @@ function makeChrome() {
     },
     windows: {
       WINDOW_ID_NONE: -1,
+      async get(id) {
+        if (!(id in this.owner.windowsState.active)) throw new Error(`No window with id: ${id}.`);
+        return { id };
+      },
       async getLastFocused() {
         return { id: this.owner.windowsState.lastFocused };
       },
       onFocusChanged: event('focusChanged'),
+      onRemoved: event('windowRemoved'),
     },
     scripting: { executeScript: async () => [] },
   };
@@ -334,29 +339,43 @@ test('worker: a fresh install follows the top live international match', async (
   assert.equal(w.chrome.storage.local.data.score.teams[0].abbr, 'BAN');
 });
 
-test('worker: with windows side by side, only the one used last shows the score', async () => {
+test('worker: the score stays in the window it started in', async () => {
   const w = loadWorker(async () => okResponse(page(live)));
   const local = w.chrome.storage.local.data;
+  const state = w.chrome.windowsState;
   const settle = () => new Promise((r) => setTimeout(r, 5));
   await w.chrome.listeners.installed();
-  assert.equal(local.shownIn, 11, 'active tab of the window used last');
-  // Click into window 2: the score moves there.
-  w.chrome.windowsState.lastFocused = 2;
+  assert.equal(local.homeWindow, 1, 'starts in the window used last');
+  assert.equal(local.shownIn, 11);
+  // Clicking into window 2 beside it, or switching tabs there, doesn't move it.
+  state.lastFocused = 2;
   w.chrome.listeners.focusChanged(2);
   await settle();
-  assert.equal(local.shownIn, 22);
-  // Switching to another app keeps it where it is.
-  w.chrome.listeners.focusChanged(-1);
-  await settle();
-  assert.equal(local.shownIn, 22);
-  // A tab switch in window 1 while window 2 is in use doesn't take it; one in window 2 does.
-  await w.chrome.listeners.tabActivated({ tabId: 12, windowId: 1 });
-  assert.equal(local.shownIn, 22);
   await w.chrome.listeners.tabActivated({ tabId: 23, windowId: 2 });
-  assert.equal(local.shownIn, 23);
+  assert.equal(local.shownIn, 11);
+  // Switching tabs in its own window brings it along.
+  await w.chrome.listeners.tabActivated({ tabId: 12, windowId: 1 });
+  assert.equal(local.shownIn, 12);
+  // "Show the score in this window" from the menu moves it on purpose.
+  state.active[2] = 23;
+  await w.message({ type: 'showHere', windowId: 2 });
+  assert.deepEqual([local.homeWindow, local.shownIn], [2, 23]);
+  // Closing its window hands it to the window used last.
+  delete state.active[2];
+  state.lastFocused = 1;
+  w.chrome.listeners.windowRemoved(2);
+  await settle();
+  assert.deepEqual([local.homeWindow, local.shownIn], [1, 11]);
   // Each page learns its own tab id, to compare with shownIn.
-  const res = await w.message({ type: 'whoami' }, { tab: { id: 23 } });
-  assert.equal(res.result, 23);
+  const res = await w.message({ type: 'whoami' }, { tab: { id: 11 } });
+  assert.equal(res.result, 11);
+});
+
+test('worker: an extension reload keeps the home window', async () => {
+  const w = loadWorker(async () => okResponse(page(live)));
+  Object.assign(w.chrome.storage.local.data, { homeWindow: 2, shownIn: 99 });
+  await w.chrome.listeners.installed();
+  assert.deepEqual([w.chrome.storage.local.data.homeWindow, w.chrome.storage.local.data.shownIn], [2, 22]);
 });
 
 test('worker: keyboard shortcut toggles the widget', async () => {

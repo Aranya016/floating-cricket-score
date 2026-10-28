@@ -83,6 +83,14 @@ async function checkActiveTab() {
   }
 }
 
+// The score stays in one window; this moves it to the window the menu was opened from.
+async function checkWindow() {
+  const [win, { homeWindow }] = await Promise.all([chrome.windows.getCurrent(), chrome.storage.local.get('homeWindow')]);
+  const btn = $('this-window');
+  btn.hidden = homeWindow == null || homeWindow === win.id;
+  btn.onclick = () => ask({ type: 'showHere', windowId: win.id }).then(() => window.close(), showError);
+}
+
 $('enabled').addEventListener('change', (e) => savePrefs({ enabled: e.target.checked }));
 $('interval').addEventListener('change', (e) => savePrefs({ interval: Number(e.target.value) }));
 $('reset-pos').addEventListener('click', () => savePrefs({ pos: null }));
@@ -106,6 +114,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   drawCurrent();
   drawList();
   checkActiveTab();
+  if (changes.homeWindow) checkWindow();
 });
 
 (async () => {
@@ -114,6 +123,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   $('interval').value = String(prefs.interval || 20);
   drawCurrent();
   checkActiveTab();
+  checkWindow();
   loadList();
   ask({ type: 'tick' }).catch(() => {});
 })();

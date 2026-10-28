@@ -203,8 +203,9 @@ async function onTitle(url, title) {
 }
 
 // --- Which tab shows the score ------------------------------------------------
-// One score at a time: in the active tab of the browser window used last, so windows side by
-// side don't each show their own. Switching to another app leaves it where it is.
+// One score at a time. It lives in one browser window, its "home": the first window you use,
+// or the one you pick in the menu. It follows that window's active tab, and clicking into a
+// window beside it doesn't move it. If the home window closes, the window used last takes over.
 
 async function showIn(tabId) {
   const { shownIn } = await chrome.storage.local.get('shownIn');
@@ -216,19 +217,29 @@ async function showInWindow(windowId) {
   if (tab) await showIn(tab.id);
 }
 
-async function showInLastFocused() {
+async function setHome(windowId) {
+  await chrome.storage.local.set({ homeWindow: windowId });
+  await showInWindow(windowId);
+}
+
+// The home window's id, choosing one first if there's none or it has closed.
+async function ensureHome() {
+  const { homeWindow } = await chrome.storage.local.get('homeWindow');
+  if (homeWindow != null && (await chrome.windows.get(homeWindow).then(() => true, () => false))) return homeWindow;
   const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
-  if (win) await showInWindow(win.id);
+  if (!win) return null;
+  await setHome(win.id);
+  return win.id;
 }
 
 chrome.windows.onFocusChanged.addListener((windowId) => {
-  if (windowId !== chrome.windows.WINDOW_ID_NONE) showInWindow(windowId);
+  if (windowId !== chrome.windows.WINDOW_ID_NONE) ensureHome(); // only matters when there's no home yet
 }, { windowTypes: ['normal'] });
 
+chrome.windows.onRemoved.addListener(() => ensureHome(), { windowTypes: ['normal'] });
+
 chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
-  // A tab switching in a window you aren't using (e.g. one opened by a link) doesn't take the score.
-  const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
-  if (!win || win.id === windowId) await showIn(tabId);
+  if ((await ensureHome()) === windowId) await showIn(tabId);
 });
 
 // --- Wiring ----------------------------------------------------------------
@@ -237,10 +248,12 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const jobs = {
     // A content script asks which tab it is in, to know whether the score is its to show.
     whoami: async () => {
+      const home = await ensureHome();
       const { shownIn } = await chrome.storage.local.get('shownIn');
-      if (shownIn == null) await showInLastFocused();
+      if (shownIn == null && home != null) await showInWindow(home);
       return sender.tab ? sender.tab.id : null;
     },
+    showHere: () => setHome(msg.windowId), // "Show the score in this window" in the menu
     tick: () => refresh(false),
     refresh: () => refresh(true),
     follow: () => follow(msg.url),
@@ -274,7 +287,8 @@ async function ensureAlarm() {
 chrome.runtime.onInstalled.addListener(async () => {
   await setPrefs({}); // write defaults so content scripts can read them
   await chrome.storage.local.remove('floating'); // left over from 1.0's pop-out window
-  await showInLastFocused();
+  const home = await ensureHome(); // an extension reload keeps the home window it had
+  if (home != null) await showInWindow(home);
   await ensureAlarm();
   // Show the widget in tabs that were already open, without needing a reload.
   // file:// covers PDFs and pages saved on the computer (unpacked extensions may read them by default).
@@ -285,8 +299,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   refresh(true);
 });
 
-chrome.runtime.onStartup.addListener(() => {
-  showInLastFocused(); // tab ids from the last session mean nothing now
+chrome.runtime.onStartup.addListener(async () => {
+  // Window and tab ids from the last session mean nothing now (and may even be reused).
+  await chrome.storage.local.remove(['homeWindow', 'shownIn']);
   ensureAlarm();
+  await ensureHome();
 });
 ensureAlarm();
