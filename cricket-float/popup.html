@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Floating Cricket Score</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt="" width="20" height="20">
+    <h1>Floating Score</h1>
+  </header>
+
+  <div id="current"></div>
+  <div class="row">
+    <button id="float" class="primary">Float score</button>
+    <button id="refresh">Refresh now</button>
+  </div>
+  <p class="hint" id="float-hint">Opens a small window in the corner that stays above everything, like a video. Click it to see batters and bowler. Brave labels the window with the site it floats from; keep the match open in a Cricinfo tab and it floats from there.</p>
+
+  <button id="this-tab" class="wide" hidden></button>
+  <p id="err" class="err" hidden></p>
+
+  <h2>Pick a match <button id="reload-list" class="link" title="Reload list">↻</button></h2>
+  <ul id="matches"><li class="hint">Loading matches…</li></ul>
+
+  <h2>Or paste a Cricinfo match link</h2>
+  <form id="paste">
+    <input id="url" type="url" placeholder="https://www.cricinfo.com/series/…" autocomplete="off" spellcheck="false">
+    <button type="submit">Follow</button>
+  </form>
+
+  <h2>Settings</h2>
+  <div class="setting">
+    <span>Also show a score card inside web pages</span>
+    <label class="switch" title="Alt+Shift+C also shows or hides it">
+      <input type="checkbox" id="enabled">
+      <span></span>
+    </label>
+  </div>
+  <div class="setting">
+    <span>Refresh every</span>
+    <select id="interval">
+      <option value="15">15 seconds</option>
+      <option value="20">20 seconds</option>
+      <option value="30">30 seconds</option>
+      <option value="60">1 minute</option>
+    </select>
+  </div>
+  <div class="setting"><button id="reset-pos" class="link">Move the page card back to the bottom-right corner</button></div>
+  <p class="foot">
+    The floating window lives in the tab you float it from, so leave that tab open.
+    For the fastest updates, keep the match open in a Cricinfo tab (you can pin it).
+  </p>
+
+  <script src="parser.js"></script>
+  <script src="widget.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

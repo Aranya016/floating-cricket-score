@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Widget states (preview)</title>
+  <style>
+    body { margin: 0; padding: 16px; background: #e9e7e1; font: 12px system-ui; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+    figure { margin: 0; }
+    figcaption { margin-bottom: 4px; color: #555; }
+  </style>
+</head>
+<body>
+  <script src="/cricket-float/parser.js"></script>
+  <script src="/cricket-float/widget.js"></script>
+  <script>
+    (async () => {
+      const [live, others] = await Promise.all(['ban-wi-live', 'other-states'].map((n) => fetch(`/dev/fixtures/${n}.json`).then((r) => r.json())));
+      const now = Date.now();
+      const mk = (nd, extra) => ({ ...CricParser.parseMatch(nd), fetchedAt: now - 12000, error: null, ...extra });
+      const done = mk(others.saaus, { phase: 'done', status: 'Result', statusText: 'South Africa won by 7 wickets', batters: [], bowler: null });
+      done.teams = [{ abbr: 'SA', name: 'South Africa', color: '#ace411', score: '329 & 182/3', info: '(41.2 ov, T:179)' }, { abbr: 'AUS', name: 'Australia', color: '#f3f702', score: '211 & 299', info: '' }];
+      const states = [
+        ['Live', mk(live), {}],
+        ['Upcoming', mk(others.pre), {}],
+        ['Stumps', mk(others.saaus), {}],
+        ['Finished', done, {}],
+        ['Refresh failing (keeps last score)', mk(live, { error: 'Cricinfo answered 403', fetchedAt: now - 180000 }), {}],
+        ['No data yet', { error: 'Cricinfo answered 403' }, {}],
+        ['Minimised', mk(live), { collapsed: true }],
+        ['Minimised, upcoming', mk(others.pre), { collapsed: true }],
+        ['Minimised, wicket', mk(live), { collapsed: true, flash: 'W' }],
+        ['Minimised, finished', done, { collapsed: true }],
+      ];
+      for (const [label, score, opts] of states) {
+        const fig = document.createElement('figure');
+        fig.innerHTML = `<figcaption>${label}</figcaption>`;
+        const host = document.createElement('div');
+        const shadow = host.attachShadow({ mode: 'open' });
+        CricWidget.adoptStyles(shadow);
+        const box = document.createElement('div');
+        shadow.append(box);
+        fig.append(host);
+        document.body.append(fig);
+        CricWidget.render(box, score, { mode: 'float', now, ...opts });
+      }
+    })();
+  </script>
+</body>
+</html>
